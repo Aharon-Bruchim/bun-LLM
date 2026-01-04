@@ -1,8 +1,10 @@
 import { router } from './trpc';
-import { templateRouter } from './template/router';
+import { userRouter } from './user/router';
+import { llmRouter } from './llm/router';
 
 export const appRouter = router({
-    template: templateRouter,
+    user: userRouter,
+    llm: llmRouter,
 });
 
 export type AppRouter = typeof appRouter;

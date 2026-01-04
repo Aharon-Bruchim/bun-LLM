@@ -1,9 +1,9 @@
 import { initTRPC, TRPCError } from '@trpc/server';
 import { ZodError } from 'zod';
-import type { Template } from './template/interface';
+import type { UserDocument } from './user/interface';
 
-interface Context {
-    user: Template | null;
+export interface Context {
+    user: UserDocument | null;
 }
 
 const t = initTRPC.context<Context>().create({
@@ -25,6 +25,17 @@ const authMiddleware = t.middleware(({ ctx, next }) => {
     return next({ ctx: { ...ctx, user: ctx.user } });
 });
 
+const adminMiddleware = t.middleware(({ ctx, next }) => {
+    if (!ctx.user) {
+        throw new TRPCError({ code: 'UNAUTHORIZED' });
+    }
+    if (!ctx.user.isAdmin) {
+        throw new TRPCError({ code: 'FORBIDDEN', message: 'Admin access required' });
+    }
+    return next({ ctx: { ...ctx, user: ctx.user } });
+});
+
 export const router = t.router;
 export const publicProcedure = t.procedure;
 export const protectedProcedure = t.procedure.use(authMiddleware);
+export const adminProcedure = t.procedure.use(adminMiddleware);

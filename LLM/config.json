@@ -1,0 +1,39 @@
+{
+  "provider": "groq",
+  "apiKey": "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",
+  "serperApiKey": "35a94572f2d1fb130938bc23d8ec76d9219f8361",
+  "model": "llama-3.3-70b-versatile",
+  "question": "חפש מי זכה במשחקי השף עונה 2 ישראל",
+  "responseFormat": "json",
+   "providers": {
+    "deepseek": {
+      "baseUrl": "https://api.deepseek.com/chat/completions",
+      "models": [
+        "deepseek-chat",
+        "deepseek-reasoner"
+      ]
+    },
+    "openrouter": {
+      "baseUrl": "https://openrouter.ai/api/v1/chat/completions",
+      "models": [
+        "deepseek/deepseek-chat-v3-0324:free",
+        "qwen/qwen3-235b-a22b:free",
+        "google/gemini-2.0-flash-exp:free"
+      ]
+    },
+    "gemini": {
+      "baseUrl": "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
+      "models": [
+        "gemini-2.0-flash",
+        "gemini-1.5-flash"
+      ]
+    },
+    "groq": {
+      "baseUrl": "https://api.groq.com/openai/v1/chat/completions",
+      "models": [
+        "llama-3.3-70b-versatile",
+        "mixtral-8x7b-32768"
+      ]
+    }
+  }
+}
