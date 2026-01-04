@@ -24,6 +24,7 @@ export const createServer = () => {
     app.post('/api/chat/stream', async (c) => {
         const body = await c.req.json();
         const message = body.message as string;
+        const conversationHistory = body.messages as { role: string; content: string }[] | undefined;
         const userId = body.userId || c.req.header('x-user-id');
 
         if (!message) {
@@ -59,7 +60,7 @@ export const createServer = () => {
             const toolsUsed: string[] = [];
 
             try {
-                for await (const chunk of orchestrator.chatStream(message, context)) {
+                for await (const chunk of orchestrator.chatStream(message, context, conversationHistory)) {
                     await stream.writeSSE({ data: chunk });
 
                     // Track assistant message and tools for chat history

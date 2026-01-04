@@ -65,6 +65,12 @@ function ChatPage() {
     setLoading(true)
 
     try {
+      // שליחת כל ההיסטוריה כדי שה-LLM יזכור את ההקשר
+      const historyForLLM = [...messages, userMessage].map(m => ({
+        role: m.role,
+        content: m.content,
+      }))
+
       const response = await fetch('/api/chat/stream', {
         method: 'POST',
         headers: {
@@ -73,6 +79,7 @@ function ChatPage() {
         },
         body: JSON.stringify({
           message: userMessage.content,
+          messages: historyForLLM,
           userId: user.id,
         }),
       })

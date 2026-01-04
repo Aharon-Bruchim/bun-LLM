@@ -156,7 +156,11 @@ export class LLMOrchestrator {
     }
 
     // Streaming chat - מחזיר AsyncGenerator
-    async *chatStream(userPrompt: string, context: ToolContext): AsyncGenerator<string, void, unknown> {
+    async *chatStream(
+        userPrompt: string,
+        context: ToolContext,
+        conversationHistory?: { role: string; content: string }[]
+    ): AsyncGenerator<string, void, unknown> {
         // Rate Limiting
         const rateLimitKey = context.user?.id || context.requestId;
         const rateCheck = rateLimiter.check(rateLimitKey);
@@ -166,20 +170,43 @@ export class LLMOrchestrator {
             return;
         }
 
-        const sanitizedPrompt = sanitizeForLLM(userPrompt);
         const toolsUsedNames: string[] = [];
 
+        // בדיקה אם ההודעה האחרונה היא אישור - רק אז מאפשרים כלים
+        const confirmationWords = ['כן', 'כ', 'אישור', 'בצע', 'yes', 'ok', 'אוקיי'];
+        const lastUserMessage = userPrompt.trim().toLowerCase();
+        const isConfirmation = confirmationWords.some(word => lastUserMessage === word || lastUserMessage === word + '.');
+
+        // אם זה לא אישור, לא נותנים ל-LLM גישה לכלים
+        const allowTools = isConfirmation;
+
+        logger.debug(`User message: "${userPrompt}", isConfirmation: ${isConfirmation}, allowTools: ${allowTools}`);
+
+        // בניית ההודעות - כולל היסטוריית השיחה
         const messages: LLMMessage[] = [
             { role: 'system', content: this.buildSystemPrompt(context) },
-            { role: 'user', content: sanitizedPrompt },
         ];
+
+        // הוספת היסטוריית השיחה אם קיימת
+        if (conversationHistory && conversationHistory.length > 0) {
+            for (const msg of conversationHistory) {
+                messages.push({
+                    role: msg.role as 'user' | 'assistant',
+                    content: sanitizeForLLM(msg.content),
+                });
+            }
+        } else {
+            // אם אין היסטוריה, רק ההודעה הנוכחית
+            messages.push({ role: 'user', content: sanitizeForLLM(userPrompt) });
+        }
 
         let iteration = 0;
 
         while (iteration < this.maxIterations) {
             iteration++;
 
-            const availableTools = toolRegistry.getOpenAITools(context);
+            // אם לא קיבלנו אישור - לא נותנים כלים ל-LLM
+            const availableTools = allowTools ? toolRegistry.getOpenAITools(context) : [];
 
             // קריאה עם streaming
             const stream = this.callLLMStream(messages, availableTools);
@@ -279,15 +306,18 @@ ${userInfo}
 כלים זמינים: ${toolsList}
 
 תהליך עבודה (חובה!):
-1. כשמקבלים בקשה - קודם להבין מה המשתמש רוצה
-2. לשקף בחזרה: "הבנתי שאתה רוצה [פעולה]. האם לבצע?"
-3. לחכות לאישור מהמשתמש (כן/לא/אישור)
-4. רק אחרי אישור - לבצע את הפעולה
-5. לבצע רק את הפעולה שאושרה - לא יותר!
+1. כשמקבלים בקשה חדשה - רק לשאול "הבנתי שאתה רוצה [פעולה]. האם לבצע?" ולסיים. אסור להשתמש בכלים!
+2. רק כשהמשתמש עונה "כן" או "אישור" - אז להשתמש בכלי ולבצע
 
-דוגמה:
-משתמש: "הוסף משתמש חדש"
-אתה: "הבנתי שאתה רוצה ליצור משתמש חדש. אנא ספק שם ואימייל, או שאצור משתמש עם פרטים רנדומליים. מה מעדיף?"
+חשוב מאוד:
+- אם ההודעה האחרונה של המשתמש היא בקשה חדשה (לא "כן"/"אישור") - רק לשאול אישור, בלי להפעיל כלים!
+- אם ההודעה האחרונה היא "כן" או "אישור" או "בצע" - אז להפעיל את הכלי
+
+דוגמה נכונה:
+משתמש: "מחק את משתמש X"
+אתה: "הבנתי שאתה רוצה למחוק את משתמש X. האם לבצע?" (בלי להפעיל כלי!)
+משתמש: "כן"
+אתה: (עכשיו להפעיל את הכלי ולמחוק)
 
 התנהגות:
 - אם הבקשה לא קשורה לניהול משתמשים - ענה: "אני יכול לעזור רק בניהול משתמשים"
