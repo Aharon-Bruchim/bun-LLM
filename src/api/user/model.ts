@@ -26,6 +26,4 @@ const UserSchema = new mongoose.Schema<UserDocument>(
     },
 );
 
-UserSchema.index({ email: 1 }, { unique: true });
-
 export const UserModel = mongoose.model<UserDocument>(config.mongo.userCollectionName, UserSchema);

@@ -24,14 +24,33 @@ export const createServer = () => {
     app.post('/api/chat/stream', async (c) => {
         const body = await c.req.json();
         const message = body.message as string;
+        const userId = body.userId || c.req.header('x-user-id');
 
         if (!message) {
             return c.json({ error: 'message is required' }, 400);
         }
 
-        // TODO: Extract user from auth header
+        // Build user context from request
+        let user = null;
+        if (userId) {
+            try {
+                const { UserManager } = await import('./user/manager');
+                const userData = await UserManager.getById(userId);
+                if (userData) {
+                    user = {
+                        id: userData._id.toString(),
+                        name: userData.name,
+                        email: userData.email,
+                        isAdmin: userData.isAdmin || false,
+                    };
+                }
+            } catch (e) {
+                // User not found, continue without user context
+            }
+        }
+
         const context = {
-            user: null,
+            user,
             requestId: randomUUID(),
         };
 

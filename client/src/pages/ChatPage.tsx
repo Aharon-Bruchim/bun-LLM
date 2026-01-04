@@ -75,8 +75,8 @@ function ChatPage() {
             try {
               const data = JSON.parse(line.slice(6))
 
-              if (data.type === 'content' && data.content) {
-                assistantContent += data.content
+              if (data.type === 'content' && data.data) {
+                assistantContent += data.data
                 setMessages((prev) =>
                   prev.map((msg) =>
                     msg.id === assistantMessageId
@@ -85,12 +85,12 @@ function ChatPage() {
                   )
                 )
               } else if (data.type === 'tool_result') {
-                if (data.result?.success && data.result?.data) {
-                  const updatedData = data.result.data
-                  if (updatedData.name || updatedData.email) {
+                if (data.result?.success && data.result?.data?.user) {
+                  const updatedUser = data.result.data.user
+                  if (updatedUser.name || updatedUser.email) {
                     updateUser({
-                      name: updatedData.name || user.name,
-                      email: updatedData.email || user.email,
+                      name: updatedUser.name || user.name,
+                      email: updatedUser.email || user.email,
                     })
                   }
                 }
