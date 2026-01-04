@@ -180,7 +180,7 @@ export class LLMOrchestrator {
         // אם זה לא אישור, לא נותנים ל-LLM גישה לכלים
         const allowTools = isConfirmation;
 
-        logger.debug(`User message: "${userPrompt}", isConfirmation: ${isConfirmation}, allowTools: ${allowTools}`);
+        logger.info(`Chat request - User message: "${userPrompt}", isConfirmation: ${isConfirmation}, allowTools: ${allowTools}`);
 
         // בניית ההודעות - כולל היסטוריית השיחה
         const messages: LLMMessage[] = [
@@ -204,9 +204,11 @@ export class LLMOrchestrator {
 
         while (iteration < this.maxIterations) {
             iteration++;
+            logger.info(`LLM Stream iteration ${iteration}, messages count: ${messages.length}`);
 
             // אם לא קיבלנו אישור - לא נותנים כלים ל-LLM
             const availableTools = allowTools ? toolRegistry.getOpenAITools(context) : [];
+            logger.info(`Available tools: ${availableTools.length > 0 ? 'YES' : 'NO'}`);
 
             // קריאה עם streaming
             const stream = this.callLLMStream(messages, availableTools);
@@ -307,11 +309,11 @@ ${userInfo}
 
 תהליך עבודה (חובה!):
 1. כשמקבלים בקשה חדשה - רק לשאול "הבנתי שאתה רוצה [פעולה]. האם לבצע?" ולסיים. אסור להשתמש בכלים!
-2. רק כשהמשתמש עונה "כן" או "אישור" - אז להשתמש בכלי ולבצע
+2. רק כשהמשתמש עונה "כן", "כ", "אישור", "בצע", "yes", "ok" או "אוקיי" - אז להשתמש בכלי ולבצע
 
 חשוב מאוד:
 - אם ההודעה האחרונה של המשתמש היא בקשה חדשה (לא "כן"/"אישור") - רק לשאול אישור, בלי להפעיל כלים!
-- אם ההודעה האחרונה היא "כן" או "אישור" או "בצע" - אז להפעיל את הכלי
+- אם ההודעה האחרונה היא "כן", "כ", "אישור", "בצע", "yes", "ok" או "אוקיי" - אז להפעיל את הכלי
 
 דוגמה נכונה:
 משתמש: "מחק את משתמש X"
@@ -383,6 +385,7 @@ ${userInfo}
     ): AsyncGenerator<{ content?: string; tool_calls?: ToolCall[] }, void, unknown> {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), config.llm.timeout);
+        logger.info(`callLLMStream: Starting request to ${config.llm.baseUrl}, tools: ${tools.length}`);
 
         try {
             const response = await fetch(config.llm.baseUrl, {
@@ -400,6 +403,14 @@ ${userInfo}
                 }),
                 signal: controller.signal,
             });
+
+            logger.info(`callLLMStream: Response status: ${response.status}`);
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                logger.error(`callLLMStream: API error - ${errorText}`);
+                throw new Error(`LLM API error: ${response.status} - ${errorText}`);
+            }
 
             if (!response.body) {
                 throw new Error('No response body');
@@ -459,9 +470,11 @@ ${userInfo}
             }
 
             if (toolCalls.length > 0) {
+                logger.info(`callLLMStream: Tool calls received: ${toolCalls.map(t => t.function.name).join(', ')}`);
                 yield { tool_calls: toolCalls };
             }
         } catch (error) {
+            logger.error(`callLLMStream: Error - ${error instanceof Error ? error.message : 'Unknown error'}`);
             if (error instanceof Error && error.name === 'AbortError') {
                 throw new Error(`LLM request timed out after ${config.llm.timeout}ms`);
             }
