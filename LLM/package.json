@@ -1,9 +1,0 @@
-{
-  "name": "llm-demo-node",
-  "version": "1.0.0",
-  "type": "module",
-  "scripts": {
-    "simple": "node simple_llm_call.js",
-    "chat": "node chat_with_history.js"
-  }
-}
