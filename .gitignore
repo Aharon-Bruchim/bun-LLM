@@ -12,3 +12,6 @@ bun.lock
 
 # OS
 .DS_Store
+
+# Logs
+logs/

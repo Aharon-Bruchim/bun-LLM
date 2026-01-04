@@ -55,9 +55,31 @@ export const createServer = () => {
         };
 
         return streamSSE(c, async (stream) => {
+            let assistantMessage = '';
+            const toolsUsed: string[] = [];
+
             try {
                 for await (const chunk of orchestrator.chatStream(message, context)) {
                     await stream.writeSSE({ data: chunk });
+
+                    // Track assistant message and tools for chat history
+                    try {
+                        const parsed = JSON.parse(chunk);
+                        if (parsed.type === 'content' && parsed.data) {
+                            assistantMessage += parsed.data;
+                        } else if (parsed.type === 'tool_start' && parsed.name) {
+                            if (!toolsUsed.includes(parsed.name)) {
+                                toolsUsed.push(parsed.name);
+                            }
+                        }
+                    } catch {
+                        // Ignore parse errors
+                    }
+                }
+
+                // Save chat history after stream completes
+                if (user?.id && assistantMessage) {
+                    orchestrator.saveChatHistory(user.id, message, assistantMessage, toolsUsed);
                 }
             } catch (error) {
                 await stream.writeSSE({

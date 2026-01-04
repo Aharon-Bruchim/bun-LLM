@@ -63,7 +63,7 @@ class ToolRegistry {
         try {
             return await tool.execute(parseResult.data, context);
         } catch (error) {
-            logger.error(`Tool execution error [${toolName}]:`, error);
+            logger.error(`Tool execution error [${toolName}]:`, error instanceof Error ? error : undefined);
             return {
                 success: false,
                 error: error instanceof Error ? error.message : 'Unknown error',

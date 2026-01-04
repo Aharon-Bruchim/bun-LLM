@@ -34,11 +34,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = async (email: string): Promise<boolean> => {
     try {
-      const response = await fetch('/trpc/user.getByQuery', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query: { email } }),
-      })
+      const response = await fetch(
+        `/trpc/user.getByQuery?input=${encodeURIComponent(JSON.stringify({ email }))}`
+      )
 
       const data = await response.json()
 

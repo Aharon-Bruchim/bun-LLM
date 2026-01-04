@@ -5,6 +5,8 @@ import { logger } from '../../utils/logger';
 import { config } from '../../config';
 import { SimpleCache } from '../../utils/cache';
 import { RateLimiter } from '../../utils/rateLimiter';
+import { ChatHistoryManager } from '../chat/manager';
+import { AuditManager } from '../audit/manager';
 
 interface LLMMessage {
     role: 'system' | 'user' | 'assistant' | 'tool';
@@ -120,7 +122,21 @@ export class LLMOrchestrator {
 
                 logger.info(`Executing tool: ${toolName}`, { args: toolArgs });
 
+                const startTime = Date.now();
                 const result = await toolRegistry.execute(toolName, toolArgs, context);
+                const duration = Date.now() - startTime;
+
+                // Log tool execution to audit
+                AuditManager.logToolExecution({
+                    userId: context.user?.id,
+                    toolName,
+                    args: toolArgs,
+                    result,
+                    success: result.success,
+                    errorMessage: result.error,
+                    duration,
+                    requestId: context.requestId,
+                }).catch((err) => logger.error('Failed to log tool execution', { err }));
 
                 toolsUsed.push({ name: toolName, args: toolArgs, result });
 
@@ -151,6 +167,7 @@ export class LLMOrchestrator {
         }
 
         const sanitizedPrompt = sanitizeForLLM(userPrompt);
+        const toolsUsedNames: string[] = [];
 
         const messages: LLMMessage[] = [
             { role: 'system', content: this.buildSystemPrompt(context) },
@@ -200,7 +217,26 @@ export class LLMOrchestrator {
 
                 yield JSON.stringify({ type: 'tool_start', name: toolName });
 
+                const startTime = Date.now();
                 const result = await toolRegistry.execute(toolName, toolArgs, context);
+                const duration = Date.now() - startTime;
+
+                // Track tools used
+                if (!toolsUsedNames.includes(toolName)) {
+                    toolsUsedNames.push(toolName);
+                }
+
+                // Log tool execution to audit
+                AuditManager.logToolExecution({
+                    userId: context.user?.id,
+                    toolName,
+                    args: toolArgs,
+                    result,
+                    success: result.success,
+                    errorMessage: result.error,
+                    duration,
+                    requestId: context.requestId,
+                }).catch((err) => logger.error('Failed to log tool execution', { err }));
 
                 yield JSON.stringify({ type: 'tool_result', name: toolName, result });
 
@@ -215,26 +251,47 @@ export class LLMOrchestrator {
         yield JSON.stringify({ type: 'error', message: 'Maximum iterations reached' });
     }
 
+    // Save chat history (called after streaming completes)
+    async saveChatHistory(
+        userId: string,
+        userMessage: string,
+        assistantMessage: string,
+        toolsUsed: string[]
+    ): Promise<void> {
+        try {
+            await ChatHistoryManager.logConversation(userId, userMessage, assistantMessage, toolsUsed);
+            logger.debug('Chat history saved', { userId, toolsUsed });
+        } catch (err) {
+            logger.error('Failed to save chat history', { err });
+        }
+    }
+
     private buildSystemPrompt(context: ToolContext): string {
         const userInfo = context.user
-            ? `Current user: ${context.user.name} (${context.user.email}), Admin: ${context.user.isAdmin}, User ID: ${context.user.id}`
-            : 'User is not authenticated';
+            ? `משתמש נוכחי: ${context.user.name} (${context.user.email}), מנהל: ${context.user.isAdmin}, מזהה: ${context.user.id}`
+            : 'המשתמש לא מחובר';
 
-        return `You are a helpful assistant with access to various tools.
+        const toolsList = toolRegistry.listTools().join(', ');
+
+        return `אתה עוזר שתפקידו היחיד הוא להשתמש בכלים הזמינים לך.
 ${userInfo}
 
-When you need to perform actions, use the available tools.
-Always respond in the same language as the user's question.
+כלים זמינים: ${toolsList}
 
-For database operations (db_users tool), respect the permission rules:
-- Regular users can only read/update their own profile (name and email only)
-- Admins can perform all operations on any user
-- When a user wants to update their own profile, use their user ID from the context above
+כללים חשובים:
+1. תפקידך היחיד הוא להבין את בקשת המשתמש ולהשתמש בכלי המתאים
+2. אסור לך לענות על שאלות כלליות, לתת מידע, עצות, מתכונים או כל תוכן שאינו קשור לכלים
+3. אם הבקשה לא מתאימה לאף כלי - ענה בקצרה: "אני יכול לעזור רק בניהול פרופיל המשתמש שלך"
+4. ענה תמיד בשפה שבה המשתמש פנה אליך
 
-Important security rules:
-- Never expose sensitive information about other users
-- Always verify permissions before performing operations
-- If a user tries to do something they're not allowed to, explain why they can't`;
+לגבי פעולות במסד נתונים (db_users):
+- משתמשים רגילים יכולים רק לקרוא/לעדכן את הפרופיל שלהם (שם ואימייל בלבד)
+- מנהלים יכולים לבצע את כל הפעולות על כל משתמש
+- כשמשתמש רוצה לעדכן את הפרופיל שלו, השתמש במזהה המשתמש מהקונטקסט למעלה
+
+אבטחה:
+- לעולם אל תחשוף מידע רגיש על משתמשים אחרים
+- תמיד וודא הרשאות לפני ביצוע פעולות`;
     }
 
     // קריאה רגילה עם timeout
