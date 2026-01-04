@@ -258,3 +258,56 @@ body {
   opacity: 0.5;
   cursor: not-allowed;
 }
+
+/* Quick Reply Buttons */
+.quick-replies {
+  display: flex;
+  gap: 12px;
+  padding: 12px 20px;
+  background: #f8f9ff;
+  border-top: 1px solid #e1e1e1;
+  justify-content: center;
+}
+
+.quick-reply-btn {
+  padding: 10px 24px;
+  border: 2px solid;
+  border-radius: 20px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.quick-reply-btn.yes {
+  background: #e8f5e9;
+  border-color: #4caf50;
+  color: #2e7d32;
+}
+
+.quick-reply-btn.yes:hover {
+  background: #4caf50;
+  color: white;
+}
+
+.quick-reply-btn.no {
+  background: #ffebee;
+  border-color: #f44336;
+  color: #c62828;
+}
+
+.quick-reply-btn.no:hover {
+  background: #f44336;
+  color: white;
+}
+
+.quick-reply-btn.other {
+  background: #fff3e0;
+  border-color: #ff9800;
+  color: #e65100;
+}
+
+.quick-reply-btn.other:hover {
+  background: #ff9800;
+  color: white;
+}

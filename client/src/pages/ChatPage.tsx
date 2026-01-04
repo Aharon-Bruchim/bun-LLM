@@ -7,6 +7,24 @@ interface Message {
   content: string
 }
 
+// בדיקה אם ההודעה מבקשת אישור
+const isAskingConfirmation = (content: string): boolean => {
+  const confirmPatterns = [
+    'האם לבצע',
+    'האם להמשיך',
+    'האם אתה בטוח',
+    'האם לאשר',
+    'מה מעדיף',
+    'האם ליצור',
+    'האם למחוק',
+    'האם לעדכן',
+    'האם תרצה',
+    'לבצע?',
+    'לאשר?',
+  ]
+  return confirmPatterns.some(pattern => content.includes(pattern))
+}
+
 function ChatPage() {
   const { user, logout, updateUser } = useAuth()
   const [messages, setMessages] = useState<Message[]>([])
@@ -22,14 +40,24 @@ function ChatPage() {
     scrollToBottom()
   }, [messages])
 
-  const sendMessage = async (e: React.FormEvent) => {
+  // שליחת תשובה מהירה
+  const sendQuickReply = (text: string) => {
+    setInput(text)
+    // שימוש ב-setTimeout כדי לאפשר ל-React לעדכן את ה-state לפני השליחה
+    setTimeout(() => {
+      const fakeEvent = { preventDefault: () => {} } as React.FormEvent
+      sendMessageWithText(text, fakeEvent)
+    }, 0)
+  }
+
+  const sendMessageWithText = async (text: string, e: React.FormEvent) => {
     e.preventDefault()
-    if (!input.trim() || loading || !user) return
+    if (!text.trim() || loading || !user) return
 
     const userMessage: Message = {
       id: Date.now().toString(),
       role: 'user',
-      content: input.trim(),
+      content: text.trim(),
     }
 
     setMessages((prev) => [...prev, userMessage])
@@ -116,6 +144,16 @@ function ChatPage() {
     }
   }
 
+  const sendMessage = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!input.trim() || loading || !user) return
+    sendMessageWithText(input.trim(), e)
+  }
+
+  // בדיקה אם צריך להציג כפתורי אישור
+  const lastMessage = messages[messages.length - 1]
+  const showConfirmButtons = !loading && lastMessage?.role === 'assistant' && isAskingConfirmation(lastMessage.content)
+
   return (
     <div className="chat-container">
       <header className="chat-header">
@@ -149,6 +187,20 @@ function ChatPage() {
         )}
         <div ref={messagesEndRef} />
       </div>
+
+      {showConfirmButtons && (
+        <div className="quick-replies">
+          <button onClick={() => sendQuickReply('כן')} className="quick-reply-btn yes">
+            כן ✓
+          </button>
+          <button onClick={() => sendQuickReply('לא')} className="quick-reply-btn no">
+            לא ✗
+          </button>
+          <button onClick={() => sendQuickReply('משהו אחר')} className="quick-reply-btn other">
+            משהו אחר
+          </button>
+        </div>
+      )}
 
       <form onSubmit={sendMessage} className="chat-input-form">
         <input

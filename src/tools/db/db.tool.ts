@@ -155,6 +155,11 @@ export const dbTool: Tool<DbToolInput, DbToolOutput> = {
                         return { success: false, error: 'Invalid user ID format' };
                     }
 
+                    // מניעת מחיקה עצמית - הגנה קריטית!
+                    if (userId === context.user?.id) {
+                        return { success: false, error: 'Cannot delete yourself' };
+                    }
+
                     const perm = checkUserPermission('delete', userId, context.user);
                     if (!perm.allowed) {
                         return { success: false, error: perm.reason };
